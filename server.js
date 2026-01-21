@@ -1,48 +1,54 @@
 const http = require("http");
 const fs = require("fs");
+const path = require("path");
 
 const PORT = process.env.PORT || 3000;
 
+function sendJson(res, statusCode, obj) {
+  res.writeHead(statusCode, {
+    "Content-Type": "application/json",
+    "Cache-Control": "no-store"
+  });
+  res.end(JSON.stringify(obj));
+}
+
+function getRandomAffirmation() {
+  try {
+    const filePath = path.join(__dirname, "affirmation.json");
+    const raw = fs.readFileSync(filePath, "utf8");
+    const data = JSON.parse(raw);
+
+    const list = Array.isArray(data.affirmations) ? data.affirmations : [];
+    if (list.length === 0) return "You’re my favorite person fr";
+
+    return list[Math.floor(Math.random() * list.length)];
+  } catch (e) {
+    return "You’re my favorite person fr";
+  }
+}
+
 const server = http.createServer((req, res) => {
-  if (req.url === "/affirmation") {
-    fs.readFile("affirmation.json", "utf8", (err, data) => {
-      if (err) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ affirmation: "You’re my favorite person fr" }));
-        return;
-      }
+  // Normalize URL (remove query params like ?x=1)
+  const url = (req.url || "").split("?")[0];
 
-      let json;
-      try {
-        json = JSON.parse(data);
-      } catch {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ affirmation: "You’re my favorite person fr" }));
-        return;
-      }
-
-      const list = Array.isArray(json.affirmations) ? json.affirmations : [];
-      const random = list.length
-        ? list[Math.floor(Math.random() * list.length)]
-        : "You’re my favorite person fr";
-
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ affirmation: random }));
-    });
-    return;
+  // Make the ROOT URL return a random affirmation (like an API)
+  if (url === "/") {
+    return sendJson(res, 200, { affirmation: getRandomAffirmation() });
   }
 
-  // optional: health check + home
-  if (req.url === "/" || req.url === "/health") {
-    res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ ok: true }));
-    return;
+  // Main endpoint
+  if (url === "/affirmation") {
+    return sendJson(res, 200, { affirmation: getRandomAffirmation() });
   }
 
-  res.writeHead(404, { "Content-Type": "application/json" });
-  res.end(JSON.stringify({ error: "Not found" }));
+  // Health check (optional)
+  if (url === "/health") {
+    return sendJson(res, 200, { ok: true });
+  }
+
+  return sendJson(res, 404, { error: "Not found" });
 });
 
 server.listen(PORT, () => {
-  console.log(`Running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
